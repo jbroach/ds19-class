@@ -1,6 +1,5 @@
 # Playing with mapping
 library(dplyr)
-#install.packages("sp")
 #install.packages("sf")
 library(sf)
 #install.packages("mapview")
