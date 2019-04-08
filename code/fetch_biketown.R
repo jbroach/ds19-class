@@ -31,20 +31,33 @@ get_data <- function(start="7/2016", end=NULL,
   end_date <- myd(end, truncated = 2)
   date_range <- seq(start_date, end_date, by="months")
   
+  # 3 ways to the same end...
+  
   # lapply(a, b) just applies function b to sequence a 
   # and returns a list of the modified sequence
-  urls <- lapply(date_range, make_url)
+  # urls <- lapply(date_range, make_url)
   
+  # 1) for loop over named list of urls
   # for loops can be easier for early development of code
-  for (u in urls) {
-    download.file(u, destfile = paste0(outdir, 
-                                       str_sub(u, -11)))
-  }
+  # for (u in urls) {
+  #   download.file(u, destfile = paste0(outdir, 
+  #                                      str_sub(u, -11)))
+  # }
+  
+  # 2) as an apply with an in-line function 
+  # result <- lapply(urls, function (u) {
+  #   download.file(u, destfile = paste0(outdir, str_sub(u, -11)))
+  # })
+  
+  # 3) tidy piped version that combines url generation & download
+  lapply(date_range, make_url) %>%
+    lapply(function(u) {download.file(u, destfile = paste0(outdir, 
+                                                            str_sub(u,-11)))})
 }
 
 ### Manual Run ###
 # params
-# start = "11/2018"
-# end = "4/2019"
-# 
-# get_data(start)
+start = "11/2018"
+end = "12/2018"
+
+get_data(start, end)
