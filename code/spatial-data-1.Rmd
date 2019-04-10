@@ -1,0 +1,83 @@
+---
+title: "Working with spatial data"
+author: "jbroach"
+date: "April 10, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+#install.packages("sf")
+library(sf)
+#install.packages("lwgeom")
+library(lwgeom)
+#install.packages("tidycensus")
+library(tidycensus)
+library(ggplot2)
+library(tidyr)
+```
+
+## Working with spatial data
+
+```{r tidycensus load}
+# this loads api key for the session
+census_api_key("")
+
+v17 <- tidycensus::load_variables(2017, "acs5", cache = T)
+pdx_tracts_raw <- get_acs(geography = "tract",
+                          year = 2017, 
+                          variables = c("B19013_001",
+                                        "B03002_003",
+                                        "B01003_001"),
+                          state = "OR",
+                          county = c("Multnomah County"),
+                          geometry = TRUE
+                          ) %>% 
+  select(GEOID, variable, estimate, geometry) # vars = medinc, white NH, pop
+head(pdx_tracts_raw)
+```
+
+```{r tidycensus tidy}
+pdx_tracts <- pdx_tracts_raw %>%
+  spread(key = variable, value = estimate) %>%
+  rename(medinc = B19013_001, white = B03002_003,
+         pop = B01003_001) %>%
+  mutate(nwhite = (pop - white) / pop, 
+         area = st_area(geometry)) # area will have units!
+
+pdx_tracts_p <- st_transform(pdx_tracts, 
+                             crs = 2838) %>%
+  mutate(area = st_area(geometry))
+  # TODO add lookup info
+
+plot(pdx_tracts_p)
+
+pdx_tracts_p %>%
+  arrange(desc(area))
+
+pdx_tracts_p <- pdx_tracts_p %>%
+  filter(area < units::as_units(1e8, "m^2"))
+
+plot(pdx_tracts_p)
+
+p <- pdx_tracts_p %>% 
+  ggplot()
+p + geom_sf(aes(fill = medinc)) 
+p + geom_sf(aes(fill = nwhite)) +
+  scale_fill_distiller(direction = -1) # flip the ramp
+
+```
+
+```{r load biketown data}
+source("code/fetch_biketown.R")
+#getwd()
+get_data(start = "01/2018", 
+         end = "12/2018", 
+         outdir = "data/biketown/")
+
+
+```
+
+
