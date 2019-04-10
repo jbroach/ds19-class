@@ -1,5 +1,6 @@
 ---
 title: "Working with spatial data"
+'
 author: "jbroach"
 date: "April 10, 2019"
 output: html_document
@@ -17,6 +18,8 @@ library(lwgeom)
 library(tidycensus)
 library(ggplot2)
 library(tidyr)
+if (!require(ggsn)) {install.packages("ggsn")}; library(ggsn)
+if (!require(mapview)) {install.packages("mapview")}; library(mapview)
 ```
 
 ## Working with spatial data
@@ -68,16 +71,94 @@ p + geom_sf(aes(fill = medinc))
 p + geom_sf(aes(fill = nwhite)) +
   scale_fill_distiller(direction = -1) # flip the ramp
 
+p + geom_sf(aes(fill = medinc), color = "lightgray") +
+  scale_fill_viridis_c(option = "plasma", 
+                       direction = -1, 
+                       trans = "sqrt")
+
+p + geom_sf(aes(fill = medinc), color = "lightgray") +
+  coord_sf(datum = 2838) +
+  scale_fill_viridis_c(option = "plasma", 
+                       direction = -1) +
+  xlim(232.5e4, 234e4) +
+  ylim(205e3, 215e3)
+
+p + geom_sf(aes(fill = medinc), color = "lightgray") +
+  scale_fill_viridis_c(option = "plasma", 
+                       direction = -1) +
+  ggsn::north(pdx_tracts_p, symbol = 3, scale = 0.15) +
+  ggsn::scalebar(pdx_tracts_p, dist = 4, 
+                 dist_unit = "km",
+                 transform = FALSE,
+                 st.size = 3)
+?coord_sf
+
 ```
 
 ```{r load biketown data}
 source("code/fetch_biketown.R")
 #getwd()
+outdir <- "data/biketown/"
 get_data(start = "01/2018", 
          end = "12/2018", 
          outdir = "data/biketown/")
 
+# Stitch monthly files together for analysis
+biketown_2018 <- paste0(outdir, list.files(outdir)) %>%
+  lapply(read.csv, stringsAsFactors = F) %>%
+  bind_rows() 
+
+# lapply does this read.csv(file, stringsAsFactors = F)
+head(biketown_2018)
+# for e.g. shapefiles, just use sf::read_sf()
+biketown <- biketown_2018
+rm(biketown_2018)
+hubs_start_sf <- biketown %>%
+  group_by(StartHub) %>%
+  summarize(lat = mean(StartLatitude),
+            lng = mean(StartLongitude),
+            starts = n()) %>%
+  filter(!is.na(lat) & !is.na(lng)) %>%
+  st_as_sf(coords = c("lng", "lat"),
+           crs = 4326, agr = "constant") # agr is mysterious!
+
+mapview(hubs_start_sf, zcol = "starts", legend = F,
+        cex = "starts") # if basemap doesn't show
+                                        # open in browser
+hubs_end <- biketown %>%
+  group_by(EndHub) %>%
+  summarize(lat = mean(EndLatitude),
+            lng = mean(EndLongitude),
+            ends = n())
+
+hubs_end_sf <- hubs_end %>%
+  filter(!is.na(lat) & !is.na(lng)) %>%
+  st_as_sf(coords = c("lng", "lat"),
+           crs = 4326, agr = "constant") # agr is mysterious!
+
+mapview(hubs_end_sf, zcol = "ends", legend = F,
+        cex = "ends")
+
+hubs_ratio_sf <- inner_join(hubs_start_sf,
+                            hubs_end, 
+                            by = c("StartHub" =
+                                   "EndHub")) %>%
+  mutate(starts_to_ends = starts / ends, 
+         ends_to_starts = ends / starts)
+m1 <- mapview(hubs_ratio_sf, zcol = "starts_to_ends",
+              cex = "starts_to_ends", legend = F)
+m2 <- mapview(hubs_ratio_sf, zcol = "ends_to_starts",
+              cex = "ends_to_starts", legend = F)
+sync(m1, m2)
 
 ```
 
+```{r spatial joins}
+hubs_start_sf_p <- hubs_start_sf %>% 
+  st_transform(2838) 
+
+hubs_start_sf_p <- hubs_start_sf_p %>%
+  sf::st_join(pdx_tracts_p)
+
+```
 
