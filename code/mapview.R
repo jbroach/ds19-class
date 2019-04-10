@@ -1,6 +1,6 @@
 # Playing with mapping
 library(dplyr)
-# sp must be installed but no need to load
+# sp must(?) be installed but no need to load
 #install.packages("sp")
 #install.packages("sf")
 library(sf)

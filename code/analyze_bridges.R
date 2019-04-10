@@ -1,6 +1,6 @@
 # simplified for 2019
 
-library(tidyverse)
+#library(tidyverse)
 library(lubridate)
 library(ggplot2)
 library(modelr)
@@ -22,8 +22,7 @@ ggplot(bikecount_wx, aes(x = date, y = total, group = bridge,
 # average daily bike counts by bridge
 bikecounts %>% 
   group_by(bridge) %>% 
-  summarize(avg_daily_counts=mean(total)) %>%
-  View()
+  summarize(avg_daily_counts=mean(total))
 
 # average monthly bike counts by bridge by year
 bikecounts %>% 
@@ -46,25 +45,35 @@ lm(total ~ TMIN + TMAX + PRCP + bridge, data = bikecount_wx) %>%
   summary()
 
 # can modify variables without storing
-lm(total ~ I(40 - TMIN) + I(TMAX - 68) + I((TMAX - 68)^2) + 
+lm(total ~ TMIN + TMAX + I(TMAX^2) + 
      PRCP + bridge, data = bikecount_wx) %>% summary()
-m1_poly <- lm(total ~ I(40 - TMIN) + I(TMAX - 68) + I((TMAX - 68)^2) + 
+
+m1_poly <- lm(total ~ TMIN + TMAX + I(TMAX^2) + 
                 PRCP + bridge, data = bikecount_wx)
-coef(m1_poly)[]
+coef(m1_poly)
+
 p <- ggplot(data = data.frame(x = 0), 
             mapping = aes(x = x))
-f <- function(x) {6.352e+01 *x + -9.857e-1*x^2}
-p + stat_function(fun = f, color="lightblue", size=2) + xlim(-32,32) 
+f <- function(x) {198 * x - 0.99 * x^2}
 
-bikecount_wx <- bikecount_wx %>% add_predictions(m1_poly) %>%
+p + stat_function(fun = function(x) {198 * x - 0.99 * x^2}, 
+                  color="salmon", size=1.5) + xlim(0, 100) 
+
+bikecount_wx <- bikecount_wx %>% modelr::add_predictions(m1_poly) %>%
   mutate(pred = pred)
 
 ggplot() + 
-  geom_line(data = bikecount_wx, aes(x = date, y = total), color = "red") +
-  geom_line(data = bikecount_wx, aes(x = date, y = pred), color = "blue") +
-  facet_wrap(bikecount_wx$bridge)
+  geom_line(data = bikecount_wx, aes(x = date, y = total), 
+            color = "blue") +
+  geom_line(data = bikecount_wx, aes(x = date, y = pred), 
+            color = "salmon") +
+  facet_wrap(bikecount_wx$bridge) + ylim(0, 10000) +
+  scale_x_date(date_breaks = "1 year", 
+               limits = as.Date(c('1/1/2017', '1/1/2018'), 
+                                format="%d/%m/%Y"),
+               date_labels="%Y")
 
-plot
+?scale_x_date
 
 lm(total ~ I(TMAX - 60) + I(40 - TMIN) +
      PRCP + bridge, data = bikecount_wx) %>% summary()

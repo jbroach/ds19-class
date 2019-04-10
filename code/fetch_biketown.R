@@ -57,7 +57,7 @@ get_data <- function(start="7/2016", end=NULL,
 
 ### Manual Run ###
 # params
-start = "11/2018"
-end = "12/2018"
-
-get_data(start, end)
+# start = "11/2018"
+# end = "12/2018"
+# 
+# get_data(start, end)
