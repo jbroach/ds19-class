@@ -7,9 +7,11 @@ library(sf)
 #install.packages("mapview")
 library(mapview)
 
-biketown <- read.csv("data/biketown-2018-trips.csv",
-                     stringsAsFactors = F)
+biketown <- read.csv("biketown_all.csv",
+
+                                          stringsAsFactors = F)
 head(biketown)
+
 
 hubs_start_sf <- biketown %>%
   group_by(StartHub) %>%
@@ -18,6 +20,8 @@ hubs_start_sf <- biketown %>%
   filter(!is.na(lat)) %>%
   st_as_sf(coords = c("lng", "lat"), 
            crs = 4326, agr = "constant")
+
+
 
 mapview(hubs_start_sf, zcol = "starts") # if basemap won't load in RStudio
                                         # click "show in new window" button

@@ -1,0 +1,154 @@
+---
+title: "Working with Maps and GIS data"
+#author: "Liming Wang, Joe Broach"
+#date: "8/21/2017"
+#updated: "2019-04-09"
+output: 
+  html_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Notable packages
+
+## The tidycensus packages
+- Website: https://walkerke.github.io/tidycensus/
+- Install with `install.packages("tidycensus")`
+- Vignettes: https://walkerke.github.io/tidycensus/articles/basic-usage.html
+- Reference: https://walkerke.github.io/tidycensus/reference/index.html
+
+## The simple feature packages
+- Website: https://github.com/r-spatial/sf
+- Install with `install.packages("sf")`
+    - On Mac, you may need to install `udunits` first, for example, with [homebrew](https://stackoverflow.com/a/42387825/688693)
+    - On Linux, install `libudunits2-dev` with your software management system first
+- Vignettes: https://r-spatial.github.io/sf/articles/sf1.html
+- Reference: https://r-spatial.github.io/sf/reference/index.html
+
+
+# Code examples
+
+## Data files used in the examples 
+
+1. [Portland Metro 1994 TAZ shape file](data/taz1260.shp.zip): Download & unzip to `data` subdirectory of your RStudio project folder
+2. [Portland Metro 1994 Survey geocode.raw.zip](data/portland94_geocode.raw.zip)
+
+## Map ACS 2013-17 Median Household Income by Census Tract
+
+```{r}
+## Install the tidycensus package if you haven't yet
+install.packages("tidycensus")
+install.packages("dplyr")
+install.packages("lwgeom")
+
+library(dplyr)
+library(tidycensus)
+library(ggplot2)
+library(tidyr)
+library(lwgeom)
+library(units)
+
+## setup cenus api key
+## signup your census api key at http://api.census.gov/data/key_signup.html
+census_api_key("5d1693be6ce12231248f292759f241c1ead3ed53") # note: needed to re-build website
+v17 <- load_variables(2017, "acs5", cache = TRUE)
+View(v17)
+pdx_tracts_raw <- get_acs(geography = "tract", 
+                        year = 2016, # 2013-2017
+                        variables = c("B19013_001",
+                                      "B03002_003",
+                                      "B01003_001"),
+                        state = "OR", 
+                        county = c("Multnomah County"),
+                        geometry = TRUE) %>% # load geometry/gis info
+  select(GEOID, variable, estimate, geometry)
+
+pdx_tracts <- pdx_tracts_raw %>%
+  spread(key=variable, value=estimate) %>%
+  rename(medinc = B19013_001, white = B03002_003, pop = B01003_001) %>%
+  mutate(nwnh_pct = (pop - white) / pop, area = st_area(geometry))
+head(pdx_tracts)
+pdx_tracts_p <- sf::st_transform(pdx_tracts, crs = 2838) %>%
+  mutate(area = st_area(geometry))
+head(pdx_tracts_p)
+plot(pdx_tracts_p)
+plot(pdx_tracts)
+
+pdx_tracts_p %>%
+  arrange(desc(area))
+
+pdx_tracts_p <- pdx_tracts_p %>%
+  filter(area < units::as_units(1e8, "m^2"))
+?select
+(myplot <- ggplot(pdx_tracts_p) + 
+  geom_sf(aes(fill = medinc)) +
+  theme_minimal())
+
+biketown <- read.csv("biketown_all.csv",
+
+                                          stringsAsFactors = F)
+head(biketown)
+
+
+hubs_start_sf <- biketown %>%
+  group_by(StartHub) %>%
+  summarise(lat = mean(StartLatitude), lng = mean(StartLongitude),
+            starts = n()) %>%
+  filter(!is.na(lat)) %>%
+  st_as_sf(coords = c("lng", "lat"), 
+           crs = 4326, agr = "constant")
+
+hubs_start_sf <- st_transform(hubs_start_sf, 2838)
+hubs_start_sf_j <- hubs_start_sf %>%
+  sf::st_join(pdx_tracts_p)
+head(hubs_start_sf_j)
+#ggsave("output/mymap.pdf", myplot)
+
+```
+
+## Interactive Maps of ACS 2012-16 Median Household Income by Census Tract
+
+```{r, results="asis"}
+## Install the mapview package if you haven't yet
+#install.packages("mapview")
+library(sf)
+library(mapview)
+library(dplyr)
+
+mapview(portland_tract_medhhinc %>% select(estimate), 
+        col.regions = sf.colors(10), alpha = 0.1)
+```
+
+## Example of spatial analysis: spatial join
+
+```{r}
+library(sf)
+library(readr)
+# read 1994 Metro TAZ shape file
+taz_sf <- st_read("data/taz1260.shp", crs=2913)
+
+# read geocode.raw file that contains X and Y coordinates
+portland94_df <- read_csv("data/portland94_geocode.raw.zip", col_names=c("uid", "X", "Y", "case_id", 
+                                                                       "freq", "rtz", "sid", 
+                                                                       "totemp94", "retemp94"))
+portland94_df <- portland94_df %>% 
+  filter(X!=0, Y!=0) %>% 
+  sample_n(500)
+
+# create a point geometry with x and y coordinates in the data frame
+portland94_sf <- st_as_sf(portland94_df, coords = c("X", "Y"), crs = 2913)
+
+# spatial join to get TAZ for observations in portland94_sf
+portland94_sf <- st_join(portland94_sf, taz_sf)
+head(portland94_sf)
+
+ggplot() +
+  geom_sf(data = taz_sf, aes(alpha=0.9)) +
+  geom_sf(data = portland94_sf)
+```
+
+# Resources:
+- [R spatial CRAN Task View](https://cran.r-project.org/web/views/Spatial.html)
